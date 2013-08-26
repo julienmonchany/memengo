@@ -1,0 +1,23 @@
+<div class="large-12 columns">
+	<h1 class="docs header">{{.Title}} <small>Edit</small></h1>
+	<hr>
+</div>
+
+<h1>Editing {{.Title}}</h1>
+
+<div class="panel">
+	<h5>Pro Tip</h5>
+	<p>use the Markdown syntax to format your text !</p>
+</div>
+
+<form action="/save/{{.Title}}" method="POST">
+<div class="row">
+	<div class="large-12 columns">
+		<label>Article body</label>
+		<textarea name="body">{{printf "%s" .Body}}</textarea>
+	</div>
+</div>
+	<button type="submit" class="button success radius">Submit</button>
+</form>
+
+<a class="small button radius" href="/view/{{.Title}}">Back to article</a>

@@ -1,18 +1,13 @@
 package main
 
 import (
+	"github.com/russross/blackfriday"
 	"html/template"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"net/http"
 	"regexp"
 )
-
-type Page struct {
-	Title string
-	Body  []byte
-	Misc  int
-}
 
 const lenPath = len("/view/")
 const tmplPath = "tmpl/"
@@ -40,15 +35,16 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 // MongoDB
 func mongoConnect() (*mgo.Collection, *mgo.Session, error) {
 	// MGO connexion
-	session, err := mgo.Dial("127.0.0.1:27017")
+	//session, err := mgo.Dial("127.0.0.1:27017")
+	session, err := mgo.Dial("127.0.0.1:27017,paulo.mongohq.com:10075/go_wiki")
 	if err != nil {
 		return nil, nil, err
 	}
-	c := session.DB("test").C("wiki")
+	c := session.DB("go_wiki").C("articles")
 	return c, session, nil
 }
 
-//  sauvegarde des pages
+//  pages save
 func (p *Page) save() error {
 	c, s, err := mongoConnect()
 	defer s.Close()
@@ -62,7 +58,7 @@ func (p *Page) save() error {
 	return nil
 }
 
-// chargement des pages
+// page load
 func loadPage(pagetitle string) (*Page, error) {
 	result := Page{}
 	c, s, err := mongoConnect()
@@ -74,10 +70,11 @@ func loadPage(pagetitle string) (*Page, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Page{Title: pagetitle, Body: result.Body}, nil
+	output := blackfriday.MarkdownCommon(result.Body)
+	return &Page{Title: pagetitle, Body: output}, nil
 }
 
-// Construction de la page
+// page build
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	templates.ExecuteTemplate(w, "header.html", p)
 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
@@ -116,20 +113,28 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string) {
 	renderTemplate(w, "edit", p)
 }
 
+// this function renders the home page, retrieving the number of articles then lists them
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	p, err := loadPage("index")
+	//result := Page{}
+	c, s, err := mongoConnect()
+	defer s.Close()
 	if err != nil {
-		c, s, err := mongoConnect()
-		defer s.Close()
-		if err != nil {
-			return
-		}
-		nbArt, err := c.Count()
-		p = &Page{Misc: nbArt}
-		renderTemplate(w, "index", p)
 		return
 	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	nbArt, err := c.Count()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	//err = c.Find()
+
+	templates.ExecuteTemplate(w, "header.html", nbArt)
+	err = templates.ExecuteTemplate(w, "index.html", nbArt)
+	templates.ExecuteTemplate(w, "footer.html", nbArt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	return
 }
 
 func main() {
